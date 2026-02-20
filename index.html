@@ -229,10 +229,16 @@ marker = new maplibregl.Marker({
 
 const arrow = el.querySelector("#arrow");
 
-    let index = 0;
-    let speed = 0.004;
+ let index = 0;
+let speed = 0.00005; // velocidad real (más chico = más lento)
+let lastTime = null;
 
-    function animate(){
+function animate(timestamp){
+
+    if(!lastTime) lastTime = timestamp;
+
+    const delta = timestamp - lastTime; // tiempo entre frames
+    lastTime = timestamp;
 
     if(index < route.length - 1){
 
@@ -247,7 +253,6 @@ const arrow = el.querySelector("#arrow");
         const lng = start[0] + (end[0] - start[0]) * progress;
         const lat = start[1] + (end[1] - start[1]) * progress;
 
-        // cálculo correcto de dirección
         const dx = end[0] - start[0];
         const dy = end[1] - start[1];
         const bearing = Math.atan2(dx, dy) * (180 / Math.PI);
@@ -261,14 +266,14 @@ const arrow = el.querySelector("#arrow");
             duration: 50
         });
 
-        index += speed;
+        index += speed * delta; // 🔥 ahora depende del tiempo real
 
         animationId = requestAnimationFrame(animate);
     }
 }
 
-    animate();
-}
+animationId = requestAnimationFrame(animate);
+
     
  function useMyLocation(){
 
