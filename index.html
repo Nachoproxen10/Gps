@@ -270,7 +270,50 @@ const arrow = el.querySelector("#arrow");
     animate();
 }
     
-    
+ function useMyLocation(){
+
+    if(!navigator.geolocation){
+        alert("Tu navegador no soporta geolocalización");
+        return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+        function(position){
+
+            const lng = position.coords.longitude;
+            const lat = position.coords.latitude;
+
+            // Centrar mapa
+            map.flyTo({
+                center: [lng, lat],
+                zoom: 17,
+                pitch: 60,
+                speed: 0.8
+            });
+
+            // Crear o mover marcador azul
+            if(marker){
+                marker.setLngLat([lng, lat]);
+            } else {
+                marker = new maplibregl.Marker({ color: "#1a73e8" })
+                    .setLngLat([lng, lat])
+                    .addTo(map);
+            }
+
+            // También ponerlo automáticamente como inicio
+            const startInput = document.getElementById("start");
+            startInput.value = "Mi ubicación";
+            startInput.dataset.lon = lng;
+            startInput.dataset.lat = lat;
+        },
+        function(error){
+            alert("No se pudo obtener tu ubicación. Revisá permisos.");
+        },
+        {
+            enableHighAccuracy: true
+        }
+    );
+ }   
 
 </script>
 </body>
