@@ -41,8 +41,8 @@ body { margin:0; padding:0; overflow:hidden; font-family:Arial; }
     font-weight:bold;
     cursor:pointer;
 }
-    
-    .suggestions{
+
+.suggestions{
     background:white;
     max-height:150px;
     overflow-y:auto;
@@ -71,10 +71,9 @@ body { margin:0; padding:0; overflow:hidden; font-family:Arial; }
     <div id="end-suggestions" class="suggestions"></div>
 
     <button onclick="startRoute()">Iniciar ruta</button>
-    
     <button onclick="useMyLocation()" style="margin-bottom:8px;background:#1a73e8;">
-Usar mi ubicación
-</button>
+        Usar mi ubicación
+    </button>
 </div>
 
 <div id="map"></div>
@@ -92,15 +91,25 @@ const map = new maplibregl.Map({
 let marker;
 let animationId;
 
-async function geocode(address){
-    const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}`
-    );
-    const data = await res.json();
-    return [parseFloat(data[0].lon), parseFloat(data[0].lat)];
+// ===== DISTANCIA REAL =====
+function getDistance(a, b) {
+    const R = 6371000;
+    const toRad = x => x * Math.PI / 180;
+
+    const dLat = toRad(b[1] - a[1]);
+    const dLng = toRad(b[0] - a[0]);
+
+    const lat1 = toRad(a[1]);
+    const lat2 = toRad(b[1]);
+
+    const x = dLng * Math.cos((lat1 + lat2) / 2);
+    const y = dLat;
+
+    return Math.sqrt(x*x + y*y) * R;
 }
-    
-    function setupAutocomplete(inputId, suggestionsId){
+
+// ===== AUTOCOMPLETE =====
+function setupAutocomplete(inputId, suggestionsId){
 
     const input = document.getElementById(inputId);
     const suggestionsBox = document.getElementById(suggestionsId);
@@ -119,7 +128,6 @@ async function geocode(address){
         );
 
         const data = await res.json();
-
         suggestionsBox.innerHTML = "";
 
         data.forEach(place => {
@@ -144,27 +152,25 @@ async function geocode(address){
 setupAutocomplete("start", "start-suggestions");
 setupAutocomplete("end", "end-suggestions");
 
+// ===== RUTA =====
 async function startRoute(){
 
     if(animationId) cancelAnimationFrame(animationId);
 
-    const startAddress = document.getElementById("start").value;
-    const endAddress = document.getElementById("end").value;
-
     let start = [
-    parseFloat(document.getElementById("start").dataset.lon),
-    parseFloat(document.getElementById("start").dataset.lat)
-];
+        parseFloat(document.getElementById("start").dataset.lon),
+        parseFloat(document.getElementById("start").dataset.lat)
+    ];
 
-let end = [
-    parseFloat(document.getElementById("end").dataset.lon),
-    parseFloat(document.getElementById("end").dataset.lat)
-];
+    let end = [
+        parseFloat(document.getElementById("end").dataset.lon),
+        parseFloat(document.getElementById("end").dataset.lat)
+    ];
 
-if(!start[0] || !end[0]){
-    alert("Elegí una dirección de la lista");
-    return;
-}
+    if(isNaN(start[0]) || isNaN(end[0])){
+        alert("Elegí una dirección de la lista");
+        return;
+    }
 
     const response = await fetch(
         `https://router.project-osrm.org/route/v1/driving/` +
@@ -201,119 +207,108 @@ if(!start[0] || !end[0]){
     }
 
     if(marker) marker.remove();
-// Flecha estilo navegación real
-const el = document.createElement('div');
-el.style.width = "60px";
-el.style.height = "60px";
-el.style.display = "flex";
-el.style.alignItems = "center";
-el.style.justifyContent = "center";
 
-el.innerHTML = `
-<svg id="arrow" width="50" height="50" viewBox="0 0 60 60">
-  <circle cx="30" cy="30" r="18" fill="#1a73e8" opacity="0.25"/>
-  <polygon points="30,6 46,46 30,38 14,46"
-           fill="#1a73e8"
-           stroke="white"
-           stroke-width="3"
-           stroke-linejoin="round"/>
-</svg>
-`;
+    const el = document.createElement('div');
+    el.innerHTML = `
+    <svg width="50" height="50" viewBox="0 0 60 60">
+      <circle cx="30" cy="30" r="18" fill="#1a73e8" opacity="0.25"/>
+      <polygon points="30,6 46,46 30,38 14,46"
+               fill="#1a73e8"
+               stroke="white"
+               stroke-width="3"
+               stroke-linejoin="round"/>
+    </svg>
+    `;
 
-marker = new maplibregl.Marker({
-    element: el,
-    anchor: "center"
-})
-.setLngLat(route[0])
-.addTo(map);
+    marker = new maplibregl.Marker({
+        element: el,
+        anchor: "center"
+    })
+    .setLngLat(route[0])
+    .addTo(map);
 
-const arrow = el.querySelector("#arrow");
+    let distances = [0];
+    let totalDistance = 0;
 
-    let index = 0;
-    let speed = 0.003;
-
-    function animate(){
-
-    if(index < route.length - 1){
-
-        const baseIndex = Math.floor(index);
-        const nextIndex = baseIndex + 1;
-
-        const start = route[baseIndex];
-        const end = route[nextIndex];
-
-        const progress = index - baseIndex;
-
-        const lng = start[0] + (end[0] - start[0]) * progress;
-        const lat = start[1] + (end[1] - start[1]) * progress;
-
-        // cálculo correcto de dirección
-        const dx = end[0] - start[0];
-        const dy = end[1] - start[1];
-        const bearing = Math.atan2(dx, dy) * (180 / Math.PI);
-
-        marker.setLngLat([lng, lat]);
-
-        map.easeTo({
-            center:[lng, lat],
-            bearing:bearing,
-            pitch:65,
-            duration: 50
-        });
-
-        index += speed;
-
-        animationId = requestAnimationFrame(animate);
+    for (let i = 1; i < route.length; i++) {
+        totalDistance += getDistance(route[i-1], route[i]);
+        distances.push(totalDistance);
     }
+
+    let traveled = 0;
+    let speed = 15; // metros por segundo (~54 km/h)
+    let lastTime = null;
+
+    function animate(timestamp){
+
+        if(!lastTime) lastTime = timestamp;
+
+        const delta = (timestamp - lastTime) / 1000;
+        lastTime = timestamp;
+
+        traveled += speed * delta;
+
+        if(traveled < totalDistance){
+
+            let i = 1;
+            while(distances[i] < traveled) i++;
+
+            const start = route[i-1];
+            const end = route[i];
+
+            const segmentDist = distances[i] - distances[i-1];
+            const progress =
+                (traveled - distances[i-1]) / segmentDist;
+
+            const lng = start[0] + (end[0] - start[0]) * progress;
+            const lat = start[1] + (end[1] - start[1]) * progress;
+
+            const dx = end[0] - start[0];
+            const dy = end[1] - start[1];
+            const bearing = Math.atan2(dx, dy) * (180 / Math.PI);
+
+            marker.setLngLat([lng, lat]);
+
+            map.easeTo({
+                center:[lng, lat],
+                bearing:bearing,
+                pitch:65,
+                duration: 50
+            });
+
+            animationId = requestAnimationFrame(animate);
+        }
+    }
+
+    animationId = requestAnimationFrame(animate);
 }
 
-    animate();
-}
-    
- function useMyLocation(){
+// ===== UBICACIÓN =====
+function useMyLocation(){
 
     if(!navigator.geolocation){
         alert("Tu navegador no soporta geolocalización");
         return;
     }
 
-    navigator.geolocation.getCurrentPosition(
-        function(position){
+    navigator.geolocation.getCurrentPosition(function(position){
 
-            const lng = position.coords.longitude;
-            const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        const lat = position.coords.latitude;
 
-            // Centrar mapa
-            map.flyTo({
-                center: [lng, lat],
-                zoom: 17,
-                pitch: 60,
-                speed: 0.8
-            });
+        map.flyTo({
+            center: [lng, lat],
+            zoom: 17,
+            pitch: 60,
+            speed: 0.8
+        });
 
-            // Crear o mover marcador azul
-            if(marker){
-                marker.setLngLat([lng, lat]);
-            } else {
-                marker = new maplibregl.Marker({ color: "#1a73e8" })
-                    .setLngLat([lng, lat])
-                    .addTo(map);
-            }
-
-            // También ponerlo automáticamente como inicio
-            const startInput = document.getElementById("start");
-            startInput.value = "Mi ubicación";
-            startInput.dataset.lon = lng;
-            startInput.dataset.lat = lat;
-        },
-        function(error){
-            alert("No se pudo obtener tu ubicación. Revisá permisos.");
-        },
-        {
-            enableHighAccuracy: true
-        }
-    );
-}   
+        const startInput = document.getElementById("start");
+        startInput.value = "Mi ubicación";
+        startInput.dataset.lon = lng;
+        startInput.dataset.lat = lat;
+    });
+}
 
 </script>
 </body>
