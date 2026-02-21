@@ -80,7 +80,10 @@ Usar mi ubicación
 <div id="map"></div>
 
 <script>
-
+window.onerror = function(msg, url, line){
+    alert("Error: " + msg + " en línea " + line);
+};
+    
 const map = new maplibregl.Map({
     container: 'map',
     style: 'https://tiles.openfreemap.org/styles/liberty',
