@@ -80,10 +80,7 @@ Usar mi ubicación
 <div id="map"></div>
 
 <script>
-window.onerror = function(msg, url, line){
-    alert("Error: " + msg + " en línea " + line);
-};
-    
+
 const map = new maplibregl.Map({
     container: 'map',
     style: 'https://tiles.openfreemap.org/styles/liberty',
@@ -232,16 +229,10 @@ marker = new maplibregl.Marker({
 
 const arrow = el.querySelector("#arrow");
 
- let index = 0;
-let speed = 0.00003; // velocidad real (más chico = más lento)
-let lastTime = null;
+    let index = 0;
+    let speed = 0.004;
 
-function animate(timestamp){
-
-    if(!lastTime) lastTime = timestamp;
-
-    const delta = timestamp - lastTime; // tiempo entre frames
-    lastTime = timestamp;
+    function animate(){
 
     if(index < route.length - 1){
 
@@ -256,6 +247,7 @@ function animate(timestamp){
         const lng = start[0] + (end[0] - start[0]) * progress;
         const lat = start[1] + (end[1] - start[1]) * progress;
 
+        // cálculo correcto de dirección
         const dx = end[0] - start[0];
         const dy = end[1] - start[1];
         const bearing = Math.atan2(dx, dy) * (180 / Math.PI);
@@ -269,15 +261,15 @@ function animate(timestamp){
             duration: 50
         });
 
-        index += speed * delta; // 🔥 ahora depende del tiempo real
+        index += speed;
 
         animationId = requestAnimationFrame(animate);
     }
 }
 
-animationId = requestAnimationFrame(animate);
-
-}   
+    animate();
+}
+    
  function useMyLocation(){
 
     if(!navigator.geolocation){
@@ -321,7 +313,7 @@ animationId = requestAnimationFrame(animate);
             enableHighAccuracy: true
         }
     );
- }   
+}   
 
 </script>
 </body>
